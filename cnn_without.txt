@@ -1,0 +1,198 @@
+import os
+import cv2
+import numpy as np
+from keras.preprocessing.image import ImageDataGenerator
+from keras.models import Sequential, Model
+from keras.layers import Conv2D, MaxPooling2D, Dropout, Flatten, Dense
+from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping
+from sklearn.utils import shuffle
+import matplotlib.pyplot as plt
+from skimage.feature import hog
+from skimage import exposure
+from keras.applications import VGG19
+from keras import optimizers
+from tensorflow.keras import datasets, layers, models
+from sklearn.metrics import confusion_matrix, classification_report
+
+class_names = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19','20' ] 
+class_names_label = {class_name: i for i, class_name in enumerate(class_names)}
+nb_classes = len(class_names)
+print(class_names_label) 
+
+
+
+def load_data():
+    DIRECTORY = r"C:/Users/ALSHARKAOY/Desktop/" 
+    CATEGORY = ["training", "Validation"]
+    output = []
+    image_size=(160,160)
+    for category in CATEGORY:
+        path = os.path.join(DIRECTORY, category)
+        print(path)
+        images = [] 
+        labels =[]
+        print("Loading {}".format(category))
+        for folder in os.listdir(path):
+            label = class_names_label[folder]
+            # Iterate through each image in our folder for file in os.listdir(os.path.join(path, folder)):
+            for file in os.listdir(os.path.join(path,folder)):
+                # Get the path name of the image
+                img_path = os.path.join(os.path.join(path, folder), file)
+                # Open and resize the img
+               # print(img_path)
+                
+                image = cv2.imread(img_path)
+                #plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                #plt.show()
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                image = cv2.resize(image, image_size)
+                
+                images.append(image)
+                labels.append(label)
+        images=np.array(images, dtype = 'float32')
+        lables=np.array(labels, dtype = 'int32')
+        output.append((images,labels))
+    return output        
+(train_images, train_labels), (test_images, test_labels) = load_data()
+# Initialize ImageDataGenerator for augmentation
+
+
+
+import matplotlib.pyplot as plt
+from sklearn.utils import shuffle
+train_images,train_labels=shuffle(train_images,train_labels,random_state=25)
+def display_examples(class_names, images, labels):
+    figsize = (10, 10)
+    plt.figure(figsize=figsize)
+    plt.suptitle("Some examples of images with class names", fontsize=16)
+    for i in range(25):
+        plt.subplot(5, 5, i + 1)
+        plt.xticks([])
+        plt.yticks([])
+        plt.grid(False)
+        image = cv2.resize(images[i], (80, 80))  # Resize the image for display purposes
+        plt.imshow(image.astype(np.uint8))
+        plt.xlabel(class_names[labels[i]])
+    plt.tight_layout()
+    plt.show()
+
+# Call the function to display examples with class names
+display_examples(class_names, train_images, train_labels)
+
+train_labels = np.array(train_labels)
+test_labels = np.array(test_labels)
+
+ann = Sequential([
+    Flatten(input_shape=(160, 160, 3)),
+    Dense(3000, activation='relu'),
+    Dense(1000, activation='relu'),
+    Dense(20, activation='softmax')  # Assuming 20 output classes
+])
+
+ann.compile(optimizer='SGD',
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy'])
+
+# Assuming you have X_train and y_train from your loaded data
+ann.fit(train_images, train_labels, epochs=5)
+
+# Evaluate ANN on test set
+ann.evaluate(test_images, test_labels)
+
+# Print classification report for ANN
+y_pred_ann = ann.predict(test_images)
+y_pred_classes_ann = [np.argmax(element) for element in y_pred_ann]
+print("Classification Report (ANN): \n", classification_report(test_labels, y_pred_classes_ann))
+
+# Convolutional Neural Network (CNN) model
+cnn = Sequential([
+    Conv2D(filters=32, kernel_size=(3, 3), activation='relu', input_shape=(160, 160, 3)),
+    MaxPooling2D((2, 2)),
+    Conv2D(filters=64, kernel_size=(3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(64, activation='relu'),
+    Dense(20, activation='softmax')  # Assuming 20 output classes
+])
+
+cnn.compile(optimizer='adam',
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy'])
+
+# Assuming you have X_train and y_train from your loaded data
+cnn.fit(train_images, train_labels, epochs=10)
+
+# Evaluate CNN on test set
+cnn.evaluate(test_images, test_labels)
+
+# Print classification report for CNN
+y_pred_cnn = cnn.predict(test_images)
+y_pred_classes_cnn = [np.argmax(element) for element in y_pred_cnn]
+print("Classification Report (CNN): \n", classification_report(test_labels, y_pred_classes_cnn))
+# Evaluate the model
+test_loss, test_acc = cnn.evaluate(test_images, test_labels)
+print("Test accuracy:", test_acc)
+
+import os
+from keras.preprocessing import image
+import numpy as np
+
+# Assuming you have your folders organized like 'class_1', 'class_2', ..., 'class_n'
+# Get the list of folders (classes)
+root_directory = 'C:/Users/ALSHARKAOY/Desktop/Validation'
+folders = os.listdir(root_directory)  
+class_accuracies = {}  
+total_correct_predictions = 0
+total_samples = 0
+
+for folder_name in folders:
+    class_name = folder_name  
+    folder_path = os.path.join(root_directory, folder_name)
+    
+    # Initialize counters for this class
+    class_total_samples = 0
+    class_correct_predictions = 0
+    
+    
+    for img_name in os.listdir(folder_path):
+        img_path = os.path.join(folder_path, img_name)
+        
+        
+        img = image.load_img(img_path, target_size=(160, 160))
+        img_array = image.img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0)
+        img_array = img_array / 255.0  # Normalize
+        
+        
+        predictions = cnn.predict(img_array)
+        predicted_class = np.argmax(predictions)
+        
+        
+        if class_names[predicted_class] == class_name:
+            class_correct_predictions += 1
+        
+        class_total_samples += 1
+    
+
+    class_accuracy = (
+        class_correct_predictions / class_total_samples if class_total_samples > 0 else 0
+    )
+    class_accuracies[class_name] = class_accuracy
+    
+  
+    total_correct_predictions += class_correct_predictions
+    total_samples += class_total_samples
+
+
+total_accuracy = (
+    total_correct_predictions / total_samples if total_samples > 0 else 0
+)
+
+
+
+for class_name, accuracy in class_accuracies.items():
+    print(f"Class: {class_name}, Accuracy: {accuracy * 100:.2f}%")
+
+# Print total accuracy
+print(f"Total Accuracy: {total_accuracy * 100:.2f}%")

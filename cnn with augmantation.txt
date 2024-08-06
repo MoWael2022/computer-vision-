@@ -1,0 +1,195 @@
+import os
+from turtle import pd
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from tqdm import tqdm
+from random import shuffle
+from keras.preprocessing.image import ImageDataGenerator
+from keras.models import Sequential
+from keras.layers import Conv2D, BatchNormalization, MaxPooling2D, Flatten, Dense, Dropout, Input, Add
+from keras.callbacks import ReduceLROnPlateau
+from sklearn.model_selection import train_test_split
+from keras import Model
+class_names = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19','20' ] 
+class_names_label = {class_name: i for i, class_name in enumerate(class_names)}
+nb_classes = len(class_names)
+print(class_names_label) 
+
+def load_data():
+    DIRECTORY = r"C:/Users/ALSHARKAOY/Desktop/" 
+    CATEGORY = ["input", "Validation"]
+    output = []
+    image_size=(160,160)
+    for category in CATEGORY:
+        path = os.path.join(DIRECTORY, category)
+        print(path)
+        images = [] 
+        labels =[]
+        print("Loading {}".format(category))
+        for folder in os.listdir(path):
+            label = class_names_label[folder]
+            # Iterate through each image in our folder for file in os.listdir(os.path.join(path, folder)):
+            for file in os.listdir(os.path.join(path,folder)):
+                # Get the path name of the image
+                img_path = os.path.join(os.path.join(path, folder), file)
+                # Open and resize the img
+               # print(img_path)
+                
+                image = cv2.imread(img_path)
+                #plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                #plt.show()
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                image = cv2.resize(image, image_size)
+                
+                images.append(image)
+                labels.append(label)
+        images=np.array(images, dtype = 'float32')
+        lables=np.array(labels, dtype = 'int32')
+        output.append((images,labels))
+    return output        
+(train_images, train_labels), (test_images, test_labels) = load_data()
+
+# Initialize ImageDataGenerator for augmentation
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+# Fit the ImageDataGenerator on your training data
+train_datagen.fit(train_images)
+
+# Use flow method to generate augmented images
+train_generator = train_datagen.flow(train_images, train_labels, batch_size=32)
+
+
+
+# Assuming your data loading function returns lists, convert them to numpy arrays
+train_images = np.array(train_images)
+train_labels = np.array(train_labels)
+val_images = np.array(val_images)
+val_labels = np.array(val_labels)
+test_images = np.array(test_images)
+test_labels = np.array(test_labels)
+print(len(train_images))
+# Define the CNN model
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(160, 160, 3)),
+    MaxPooling2D(2, 2),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+    Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+    Flatten(),
+    Dense(512, activation='relu'),
+    Dropout(0.5),
+    Dense(nb_classes, activation='softmax')
+])
+
+# Compile the model
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+# Set up learning rate reduction callback
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, min_lr=1e-6)
+
+# Train the model
+history = model.fit(train_images, train_labels, epochs=20, batch_size=32, validation_data=(val_images, val_labels), callbacks=[reduce_lr])
+
+# Evaluate the model on the test set
+test_loss, test_acc = model.evaluate(test_images, test_labels)
+print(f"Test accuracy: {test_acc}")
+test_loss, test_accuracy = model.evaluate(test_images, test_labels)
+print("Test Accuracy:", test_accuracy)
+import matplotlib.pyplot as plt
+
+# Assuming you've trained your model and have the 'history' object
+# Train the model and save the 'history' object
+
+# Plot training & validation accuracy values
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend(['Train', 'Validation'], loc='upper left')
+plt.show()
+
+# Plot training & validation loss values
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend(['Train', 'Validation'], loc='upper left')
+plt.show()
+
+import os
+from keras.preprocessing import image
+import numpy as np
+
+# Assuming you have your folders organized like 'class_1', 'class_2', ..., 'class_n'
+# Get the list of folders (classes)
+root_directory = 'C:/Users/ALSHARKAOY/Desktop/Validation'
+folders = os.listdir(root_directory)  
+class_accuracies = {}  
+total_correct_predictions = 0
+total_samples = 0
+
+for folder_name in folders:
+    class_name = folder_name  
+    folder_path = os.path.join(root_directory, folder_name)
+    
+    # Initialize counters for this class
+    class_total_samples = 0
+    class_correct_predictions = 0
+    
+    
+    for img_name in os.listdir(folder_path):
+        img_path = os.path.join(folder_path, img_name)
+        
+        
+        img = image.load_img(img_path, target_size=(160, 160))
+        img_array = image.img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0)
+        img_array = img_array / 255.0  # Normalize
+        
+        
+        predictions = model.predict(img_array)
+        predicted_class = np.argmax(predictions)
+        
+        
+        if class_names[predicted_class] == class_name:
+            class_correct_predictions += 1
+        
+        class_total_samples += 1
+    
+
+    class_accuracy = (
+        class_correct_predictions / class_total_samples if class_total_samples > 0 else 0
+    )
+    class_accuracies[class_name] = class_accuracy
+    
+  
+    total_correct_predictions += class_correct_predictions
+    total_samples += class_total_samples
+
+
+total_accuracy = (
+    total_correct_predictions / total_samples if total_samples > 0 else 0
+)
+
+
+
+
+for class_name, accuracy in class_accuracies.items():
+    print(f"Class: {class_name}, Accuracy: {accuracy * 100:.2f}%")
+
+# Print total accuracy
+print(f"Total Accuracy: {total_accuracy * 100:.2f}%")
